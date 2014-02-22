@@ -20,6 +20,8 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.ParametersAreNonnullByDefault;
 
+import com.github.misberner.jdtree.NodeType;
+
 
 /**
  * A node in a {@link BinaryDTree}.
@@ -35,7 +37,7 @@ public class BDTNode<D> {
 	final int nodeId;
 	private final int depth;
 	int typeId;
-	private D discriminator;
+	D discriminator;
 	
 	private BDTNode<D>[] children = null;
 
@@ -90,6 +92,23 @@ public class BDTNode<D> {
 		return nodeId;
 	}
 	
+	public int getId(NodeType type) {
+		if(type == NodeType.ANY) {
+			return nodeId;
+		}
+		if(type != getType()) {
+			throw new IllegalArgumentException();
+		}
+		return typeId;
+	}
+	
+	public boolean isOfType(NodeType type) {
+		if(type == NodeType.ANY) {
+			return true;
+		}
+		return (type == getType());
+	}
+	
 	/**
 	 * Retrieves the leaf id of this node.
 	 * @return the leaf id of this node.
@@ -132,6 +151,10 @@ public class BDTNode<D> {
 	 */
 	public boolean isInner() {
 		return (children != null);
+	}
+	
+	public NodeType getType() {
+		return (children != null) ? NodeType.INNER : NodeType.LEAF;
 	}
 	
 	/**
@@ -192,5 +215,15 @@ public class BDTNode<D> {
 	public BDTNode<D> getChild(boolean label) {
 		assert isInner() : "Only inner nodes have children";
 		return children[label ? 1 : 0];
+	}
+	
+	void setFalseChild(BDTNode<D> newFalseChild) {
+		assert newFalseChild.parent == this;
+		children[0] = newFalseChild;
+	}
+	
+	void setTrueChild(BDTNode<D> newTrueChild) {
+		assert newTrueChild.parent == this;
+		children[1] = newTrueChild;
 	}
 }

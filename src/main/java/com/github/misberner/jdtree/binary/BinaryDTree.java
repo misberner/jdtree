@@ -19,6 +19,7 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Deque;
+import java.util.Iterator;
 import java.util.List;
 
 import javax.annotation.Nonnegative;
@@ -26,6 +27,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.ParametersAreNonnullByDefault;
 
+import com.github.misberner.jdtree.NodeType;
 import com.github.misberner.jdtree.binary.BDTVisitor.ChildData;
 import com.google.common.base.Function;
 import com.google.common.base.Functions;
@@ -72,6 +74,16 @@ public class BinaryDTree<D> {
 	}
 	
 	
+	public List<? extends BDTNode<D>> getNodes() {
+		return Collections.unmodifiableList(nodes);
+	}
+	public List<? extends BDTNode<D>> getLeaves() {
+		return Collections.unmodifiableList(leaves);
+	}
+	
+	public List<? extends BDTNode<D>> getInnerNodes() {
+		return Collections.unmodifiableList(innerNodes);
+	}
 	@Nonnegative
 	public int getNumLeaves() {
 		return leaves.size();
@@ -85,6 +97,17 @@ public class BinaryDTree<D> {
 	@Nonnegative
 	public int getNumNodes() {
 		return nodes.size();
+	}
+	
+	@Nonnegative
+	public int getNumNodes(NodeType type) {
+		if(type == NodeType.ANY) {
+			return getNumNodes();
+		}
+		if(type == NodeType.INNER) {
+			return getNumInnerNodes();
+		}
+		return getNumLeaves();
 	}
 	
 	private static class SplitRecord<D,E> {
@@ -101,7 +124,7 @@ public class BinaryDTree<D> {
 	 * Splits a leaf according to another discrimination tree.
 	 * <p>
 	 * This method is aliasing-safe: if {@code leaf} is a leaf of {@code splitTree}, this method
-	 * performs as if working on a copy of {@code splitTree} nade <i>before</i> any split
+	 * performs as if working on a copy of {@code splitTree} made <i>before</i> any split
 	 * operation has been performed (even in the case of aliasing, no such copy
 	 * has to be made).
 	 * <p>
@@ -115,45 +138,67 @@ public class BinaryDTree<D> {
 	 * the newly created/split nodes. 
 	 */
 	@Nonnull
-	public <E> int[] split(BDTNode<D> leaf, BinaryDTree<E> splitTree, Function<? super E,? extends D> discTransformer) {
+	public <E> MutableBDTNodeMap<BDTNode<D>> split(BDTNode<D> leaf, BinaryDTree<E> splitTree, Function<? super E,? extends D> discTransformer) {
+		assert leaf != null;
 		Deque<SplitRecord<D,E>> stack = new ArrayDeque<>();
-		int[] result = new int[splitTree.getNumNodes()];
+		
+		MutableBDTNodeMap<BDTNode<D>> mapping = new ArrayMutableBDTNodeMap<>(splitTree, NodeType.ANY);
 		
 		stack.push(new SplitRecord<>(leaf, splitTree.getRoot()));
 		
 		while(!stack.isEmpty()) {
 			SplitRecord<D,E> rec = stack.pop();
 			BDTNode<D> thisNode = rec.thisTreeNode;
+			assert thisNode != null;
+			
 			BDTNode<E> splitNode = rec.splitTreeNode;
-			result[splitNode.getNodeId()] = thisNode.getNodeId();
+			assert splitNode != null;
+			mapping.put(splitNode, thisNode);
 			
 			if(splitNode.isInner() && splitNode != leaf) {
 				D newDiscriminator = discTransformer.apply(splitNode.getDiscriminator());
-				BDTNode<D>[] children = split(thisNode, newDiscriminator);
+				split(thisNode, newDiscriminator);
 				
-				stack.push(new SplitRecord<>(children[0], splitNode.getFalseChild()));
-				stack.push(new SplitRecord<>(children[1], splitNode.getTrueChild()));
+				stack.push(new SplitRecord<>(thisNode.getFalseChild(), splitNode.getFalseChild()));
+				stack.push(new SplitRecord<>(thisNode.getTrueChild(), splitNode.getTrueChild()));
 			}
 		}
 		
-		return result;
+		return mapping;
 	}
 	
 	@Nonnull
-	public int[] split(BDTNode<D> leaf, BinaryDTree<? extends D> splitTree) {
+	public BDTNodeMap<BDTNode<D>> split(BDTNode<D> leaf, BinaryDTree<? extends D> splitTree) {
 		return split(leaf, splitTree, Functions.<D>identity());
 	}
 	
 	
 	@Nonnull
-	public BDTNode<D>[] split(BDTNode<D> leaf, D discriminator) {
+	public void split(BDTNode<D> leaf, D discriminator) {
+		split(leaf, discriminator, false);
+	}
+	
+	@Nonnull
+	public void split(BDTNode<D> leaf, D discriminator, boolean repChild) {
 		int oldLeafId = leaf.getLeafId();
-		BDTNode<D> repLeaf = createLeaf(leaf, oldLeafId);
+		BDTNode<D> repLeaf = replaceLeaf(leaf, oldLeafId);
 		leaves.set(oldLeafId, repLeaf);
 		BDTNode<D> newLeaf = createLeaf(leaf);
-		leaf.makeInner(innerNodes.size(), discriminator, repLeaf, newLeaf);
+		BDTNode<D> newFalseChild, newTrueChild;
+		if(repChild) {
+			newFalseChild = newLeaf;
+			newTrueChild = repLeaf;
+		}
+		else {
+			newFalseChild = repLeaf;
+			newTrueChild = newLeaf;
+		}
+		makeInner(leaf, discriminator, newFalseChild, newTrueChild);
+	}
+	
+	private void makeInner(BDTNode<D> leaf, D discriminator, BDTNode<D> newFalseChild, BDTNode<D> newTrueChild) {
+		leaf.makeInner(innerNodes.size(), discriminator, newFalseChild, newTrueChild);
 		innerNodes.add(leaf);
-		return leaf.getChildren();
 	}
 	
 	@Nonnull
@@ -228,13 +273,13 @@ public class BinaryDTree<D> {
 			else { // falseChild != null && trueChild != null
 				BDTNode<D> extractedNode = rec.extractedTreeNode;
 				originalNodes.set(extractedNode.getNodeId(), thisNode);
-				BDTNode<D>[] children = extractedDTree.split(extractedNode, thisNode.getDiscriminator());
+				extractedDTree.split(extractedNode, thisNode.getDiscriminator());
 				// Placeholders for the newly created nodes
 				originalNodes.add(null);
 				originalNodes.add(null);
 				
-				stack.push(new ExtractRecord<>(falseChild, children[0]));
-				stack.push(new ExtractRecord<>(trueChild, children[1]));
+				stack.push(new ExtractRecord<>(falseChild, extractedNode.getFalseChild()));
+				stack.push(new ExtractRecord<>(trueChild, extractedNode.getTrueChild()));
 			}
 		}
 		
@@ -291,7 +336,234 @@ public class BinaryDTree<D> {
 		return lca.getDiscriminator();
 	}
 	
+	@Nonnull
+	public BDTNode<D> sift(Predicate<? super D> pred) {
+		return sift(root, pred);
+	}
 	
+	@Nonnull
+	public BDTNode<D> sift(BDTNode<D> start, Predicate<? super D> pred) {
+		BDTNode<D> curr = start;
+		
+		while(curr.isInner()) {
+			D discr = curr.getDiscriminator();
+			boolean eval = pred.apply(discr);
+			curr = curr.getChild(eval);
+		}
+		
+		return curr;
+	}
+	
+	@Nonnull
+	public <X> BDTNode<D> sift(@Nullable X object, BDTEvaluator<? super X, ? super D> evaluator) {
+		return sift(root, object, evaluator);
+	}
+	
+	@Nonnull
+	public <X> BDTNode<D> sift(BDTNode<D> start, @Nullable X object, BDTEvaluator<? super X,? super D> evaluator) {
+		BDTNode<D> curr = start;
+		
+		while(curr.isInner()) {
+			D discr = curr.getDiscriminator();
+			boolean eval = evaluator.evaluate(object, discr);
+			curr = curr.getChild(eval);
+		}
+		
+		return curr;
+	}
+	
+	private static final class IDPool {
+		private final List<Integer> nodeIds = new ArrayList<>();
+		private int nodeIdCursor = -1;
+		private final List<Integer> innerNodeIds = new ArrayList<>();
+		private int innerNodeIdCursor = -1;
+		private final List<Integer> leafIds = new ArrayList<>();
+		private int leafIdCursor = -1;
+				
+		public void close() {
+			Collections.sort(nodeIds);
+			Collections.sort(innerNodeIds);
+			Collections.sort(leafIds);
+			nodeIdCursor = leafIdCursor = innerNodeIdCursor = 0;
+		}
+		
+		public void add(BDTNode<?> node) {
+			if(nodeIdCursor >= 0) {
+				throw new IllegalStateException();
+			}
+			nodeIds.add(node.nodeId);
+			if(node.isInner()) {
+				innerNodeIds.add(node.typeId);
+			}
+			else {
+				leafIds.add(node.typeId);
+			}
+		}
+		
+		public int fetchNodeID() {
+			if(nodeIdCursor < 0) {
+				throw new IllegalStateException();
+			}
+			return nodeIds.get(nodeIdCursor++).intValue();
+		}
+		
+		public int fetchLeafID() {
+			if(leafIdCursor < 0) {
+				throw new IllegalStateException();
+			}
+			return leafIds.get(leafIdCursor++).intValue();
+		}
+		
+		public int fetchInnerID() {
+			if(innerNodeIdCursor < 0) {
+				throw new IllegalStateException();
+			}
+			return innerNodeIds.get(innerNodeIdCursor++).intValue();
+		}
+	}
+	
+	
+	private static final class ReplaceDiscriminatorRecord<D> {
+		public final BDTNode<D> newNode;
+		public final BDTNode<D> extractedNode;
+		
+		public ReplaceDiscriminatorRecord(BDTNode<D> newNode, BDTNode<D> extractedNode) {
+			this.newNode = newNode;
+			this.extractedNode = extractedNode;
+		}
+	}
+	
+	/**
+	 * Note: The number of nodes will remain the same, as the number of leaves remains the same, and in a
+	 * complete binary tree, the number of inner nodes always equals the number of leaves minus one.
+	 * 
+	 * @param innerNode
+	 * @param newDiscriminator
+	 * @param leafEvaluator
+	 * @return
+	 */
+	public BDTNodeMap<BDTNode<D>> replaceDiscriminator(BDTNode<D> innerNode, D newDiscriminator, BDTEvaluator<? super BDTNode<D>, ? super D> leafEvaluator) {
+		assert innerNode.isInner();
+		
+		// Create markings, and mark the inner node to ensure
+		// markings do not get propagated unnecessarily high
+		BDTMarking trueMark = new BDTMarking(this, innerNode.nodeId);
+		trueMark.mark(innerNode);
+		BDTMarking falseMark = new BDTMarking(this, innerNode.nodeId);
+		falseMark.mark(innerNode);
+		
+		boolean falseEmpty = true;
+		boolean trueEmpty = true;
+		Deque<BDTNode<D>> stack = new ArrayDeque<>();
+		stack.push(innerNode);
+		
+		IDPool idPool = new IDPool();
+		
+		while(!stack.isEmpty()) {
+			BDTNode<D> curr = stack.pop();
+			
+			if(curr != innerNode) {
+				idPool.add(curr);
+			}
+			
+			if(curr.isInner()) {
+				stack.push(curr.getTrueChild());
+				stack.push(curr.getFalseChild());
+			}
+			else {
+				boolean leafEval = leafEvaluator.evaluate(curr, newDiscriminator);
+				if(leafEval) {
+					trueMark.markAndPropagate(curr);
+					trueEmpty = false;
+				}
+				else {
+					falseMark.markAndPropagate(curr);
+					falseEmpty = false;	
+				}
+			}
+		}
+		stack = null; // for gc
+		
+		
+		if(falseEmpty || trueEmpty) {
+			// newDiscriminator is NOT capable of splitting the subtree
+			return null;
+		}
+		
+		idPool.close();
+		
+		ExtractedBDTree<D> falseSubtree = extract(innerNode, falseMark);
+		assert falseSubtree != null;
+		ExtractedBDTree<D> trueSubtree = extract(innerNode, trueMark);
+		assert trueSubtree != null; 
+		
+		BDTNode<D> newFalseChild = new BDTNode<>(innerNode, idPool.fetchNodeID(), -1);
+		
+		innerNode.setFalseChild(newFalseChild);
+		
+		BDTNodePairList<D> pairList = new BDTNodePairList<>();
+		
+		incorporateSubTree(newFalseChild, falseSubtree, pairList, idPool);
+		
+		BDTNode<D> newTrueChild = new BDTNode<>(innerNode, idPool.fetchNodeID(), -1);
+		innerNode.setTrueChild(newTrueChild);
+		
+		incorporateSubTree(newTrueChild, trueSubtree, pairList, idPool);
+		
+		innerNode.discriminator = newDiscriminator;
+		
+		return pairList.toNodeMap();
+	}
+	
+	private void incorporateSubTree(BDTNode<D> newRoot, ExtractedBDTree<D> subtree, BDTNodePairList<D> pairList, IDPool idPool) {
+		
+		Deque<ReplaceDiscriminatorRecord<D>> replaceStack = new ArrayDeque<>();		
+		
+		// Process the "false" subtree
+		replaceStack.push(new ReplaceDiscriminatorRecord<>(newRoot, subtree.getExtractedTree().getRoot()));
+		
+		while(!replaceStack.isEmpty()) {
+			ReplaceDiscriminatorRecord<D> rec = replaceStack.pop();
+			
+			BDTNode<D> newNode = rec.newNode;
+			BDTNode<D> extractedNode = rec.extractedNode;
+			
+			
+			if(newNode.isInner()) {
+				// Second visit
+				BDTNode<D> newTc = new BDTNode<>(newNode, idPool.fetchNodeID(), -1);
+				newNode.setTrueChild(newTc);
+				replaceStack.push(new ReplaceDiscriminatorRecord<>(newTc, extractedNode.getTrueChild()));
+			}
+			else {
+				// First visit
+				
+				// Node IDs are final!
+				nodes.set(newNode.nodeId, newNode);
+				
+				BDTNode<D> origNode = subtree.getOriginalNode(extractedNode);
+				pairList.addPair(newNode, origNode);
+				
+				if(extractedNode.isLeaf()) {
+					int leafId = extractedNode.typeId;
+					newNode.typeId = leafId;
+					leaves.set(leafId, newNode);
+				}
+				else {
+					BDTNode<D> newFc = new BDTNode<>(newNode, idPool.fetchNodeID(), -1);
+					
+					//
+					int innerId = idPool.fetchInnerID();
+					newNode.makeInner(innerId, extractedNode.getDiscriminator(), newFc, null);
+					innerNodes.set(innerId, newNode);
+					
+					replaceStack.push(rec); // For second visit
+					replaceStack.push(new ReplaceDiscriminatorRecord<>(newFc, extractedNode.getFalseChild()));
+				}
+			}
+		}
+	}
+		
 	
 	@Nullable
 	public BinaryDTree<D> extractTree(BDTNode<D> node, Predicate<? super BDTNode<D>> pred) {
@@ -344,16 +616,23 @@ public class BinaryDTree<D> {
 		return new BinaryDTree<>(newRoot, newNodes, newInnerNodes, newLeaves);
 	}
 	
+	
+	public BinaryDTree<D> deepClone() {
+		return transform(Functions.<D>identity());
+	}
+	
 	@Nonnull
-	private BDTNode<D> createLeaf(BDTNode<D> parent, int leafId) {
+	private BDTNode<D> replaceLeaf(BDTNode<D> parent, int leafId) {
 		BDTNode<D> leaf = new BDTNode<>(parent, nodes.size(), leafId);
 		nodes.add(leaf);
+		leaves.set(leafId, leaf);
 		return leaf;
 	}
 	
 	@Nonnull
 	private BDTNode<D> createLeaf(BDTNode<D> parent) {
-		BDTNode<D> leaf = createLeaf(parent, leaves.size());
+		BDTNode<D> leaf = new BDTNode<>(parent, nodes.size(), leaves.size());
+		nodes.add(leaf);
 		leaves.add(leaf);
 		return leaf;
 	}
@@ -424,5 +703,45 @@ public class BinaryDTree<D> {
 		}
 		
 		throw new AssertionError("This line should not be reached");
+	}
+	
+	
+	
+	
+	public Iterator<BDTNode<D>> subtreeNodesIterator(BDTNode<D> subtreeRoot, NodeType type) {
+		return new BDTSubtreeNodesIterator<>(subtreeRoot, type);
+	}
+	
+	public Iterable<BDTNode<D>> subtreeNodes(final BDTNode<D> subtreeRoot, final NodeType type) {
+		return new Iterable<BDTNode<D>>() {
+			@Override
+			public Iterator<BDTNode<D>> iterator() {
+				return subtreeNodesIterator(subtreeRoot, type);
+			}
+		};
+	}
+	
+	public Iterator<BDTNode<D>> subtreeNodesIterator(BDTNode<D> subtreeRoot) {
+		return subtreeNodesIterator(subtreeRoot, NodeType.ANY);
+	}
+	
+	public Iterable<BDTNode<D>> subtreeNodes(BDTNode<D> subtreeRoot) {
+		return subtreeNodes(subtreeRoot, NodeType.ANY);
+	}
+	
+	public Iterator<BDTNode<D>> subtreeInnerNodesIterator(BDTNode<D> subtreeRoot) {
+		return subtreeNodesIterator(subtreeRoot, NodeType.INNER);
+	}
+	
+	public Iterable<BDTNode<D>> subtreeInnerNodes(BDTNode<D> subtreeRoot) {
+		return subtreeNodes(subtreeRoot, NodeType.INNER);
+	}
+	
+	public Iterator<BDTNode<D>> subtreeLeavesIterator(BDTNode<D> subtreeRoot) {
+		return subtreeNodesIterator(subtreeRoot, NodeType.LEAF);
+	}
+	
+	public Iterable<BDTNode<D>> subtreeLeaves(BDTNode<D> subtreeRoot) {
+		return subtreeNodes(subtreeRoot, NodeType.LEAF);
 	}
 }

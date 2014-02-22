@@ -15,40 +15,15 @@
  */
 package com.github.misberner.jdtree.binary;
 
-import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.ParametersAreNonnullByDefault;
 
+import com.google.common.base.Function;
+
 @ParametersAreNonnullByDefault
-public class ExtractedBDTree<D> {
-	
-	@Nonnull
-	private final BDTNodeMap<BDTNode<D>> origNodeMap;
-	@Nonnull
-	private final BinaryDTree<D> extractedTree;
-	
-	ExtractedBDTree(BinaryDTree<D> originalTree, BinaryDTree<D> extractedTree,
-			BDTNode<D>[] origNodes) {
-		this.extractedTree = extractedTree;
-		this.origNodeMap = new FixedBDTNodeMap<>(origNodes);
-	}
-	
-	
-	@Nonnull
-	public BinaryDTree<D> getExtractedTree() {
-		return extractedTree;
-	}
-	
-	
-	@Nonnull
-	public BDTNode<D> getOriginalNode(BDTNode<D> extractedNode) {
-		BDTNode<D> origNode = origNodeMap.get(extractedNode);
-		assert origNode != null;
-		return origNode;
-	}
-	
-	@Nonnull
-	public BDTNodeMap<BDTNode<D>> getOriginalNodeMap() {
-		return origNodeMap;
-	}
+public interface BDTNodeMap<V> extends Function<BDTNode<?>,V> {
+
+	@Nullable
+	public V get(BDTNode<?> node);
 
 }

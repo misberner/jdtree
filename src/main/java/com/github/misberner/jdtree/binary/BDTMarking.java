@@ -20,6 +20,7 @@ import java.util.BitSet;
 import javax.annotation.Nonnull;
 import javax.annotation.ParametersAreNonnullByDefault;
 
+import com.github.misberner.jdtree.NodeType;
 import com.google.common.base.Predicate;
 
 
@@ -28,9 +29,25 @@ public class BDTMarking implements Predicate<BDTNode<?>> {
 	
 	@Nonnull
 	private final BitSet marking;
+	private int offset = 0;
+	private final NodeType type;
+	
+	public BDTMarking(BinaryDTree<?> dt, NodeType type) {
+		this(dt, type, 0);
+	}
+	
+	public BDTMarking(BinaryDTree<?> dt, int offset) {
+		this(dt, NodeType.ANY, offset);
+	}
 	
 	public BDTMarking(BinaryDTree<?> dt) {
-		this.marking = new BitSet(dt.getNumNodes());
+		this(dt, NodeType.ANY, 0);
+	}
+	
+	public BDTMarking(BinaryDTree<?> dt, NodeType type, int offset) {
+		this.marking = new BitSet(dt.getNumNodes(type) - offset);
+		this.type = type;
+		this.offset = offset;
 	}
 	
 	public void clear() {
@@ -47,7 +64,20 @@ public class BDTMarking implements Predicate<BDTNode<?>> {
 	}
 	
 	public boolean isMarked(BDTNode<?> node) {
-		return marking.get(node.getNodeId());
+		int id = nodeId(node);
+		if(id < 0) {
+			// shift offset & markings
+			int shiftAmt = -id;
+			offset -= shiftAmt;
+			
+			// FIXME this should be more efficient
+			for(int idx = marking.length(); (idx = marking.previousSetBit(idx - 1)) >= 0;) {
+				marking.set(idx + offset);
+				marking.clear(idx);
+			}
+			id = 0;
+		}
+		return marking.get(id);
 	}
 	
 	public boolean mark(BDTNode<?> node) {
@@ -60,9 +90,24 @@ public class BDTMarking implements Predicate<BDTNode<?>> {
 		return false;
 	}
 	
+	public boolean unmark(BDTNode<?> node) {
+		int id = node.getNodeId();
+		boolean wasMarked = marking.get(id);
+		if(wasMarked) {
+			marking.set(id, false);
+		}
+		return false;
+	}
+	
 	@Override
 	public boolean apply(BDTNode<?> node) {
 		return isMarked(node);
 	}
+	
+	private int nodeId(BDTNode<?> node) {
+		int nodeId = node.getId(type);
+		return nodeId - offset;
+	}
+	
 
 }
