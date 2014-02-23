@@ -34,7 +34,15 @@ import com.google.common.base.Functions;
 import com.google.common.base.Predicate;
 
 /**
- * A flexible binary discrimination tree.
+ * A versatile binary discrimination tree implementation.
+ * <p>
+ * The versatility of this implementation stems from the fact that the groups of 
+ * all nodes, leaves, and inner nodes, have respectively unique integer identifiers
+ * for all nodes, which are assigned in (mostly) predictable manners. 
+ * <p>
+ * Each node in a binary discrimination tree has a (global) node ID, allowing to identify
+ * this node among all nodes, and a specific per-type ID (i.e., either a leaf ID
+ * or an inner node ID).
  * 
  * @author Malte Isberner
  *
@@ -54,12 +62,17 @@ public class BinaryDTree<D> {
 	@Nonnull
 	private final BDTNode<D> root;
 	
+	/**
+	 * Initializes a new binary discrimination tree with a single (root) leaf. The root
+	 * has a node ID of {@code 0} and a leaf ID of {@code 0}.
+	 */
 	public BinaryDTree() {
 		this.nodes = new ArrayList<>();
 		this.leaves = new ArrayList<>();
 		this.innerNodes = new ArrayList<>();
 		root = createLeaf(null);
 	}
+	
 	
 	private BinaryDTree(BDTNode<D> root, List<BDTNode<D>> nodes, List<BDTNode<D>> innerNodes, List<BDTNode<D>> leaves) {
 		this.root = root;
@@ -74,31 +87,62 @@ public class BinaryDTree<D> {
 	}
 	
 	
+	/**
+	 * Retrieves the list of all nodes.
+	 * @return the list of all nodes
+	 */
 	public List<? extends BDTNode<D>> getNodes() {
 		return Collections.unmodifiableList(nodes);
 	}
+	
+	/**
+	 * Retrieves the list of all leaves.
+	 * @return the list of all leaves
+	 */
 	public List<? extends BDTNode<D>> getLeaves() {
 		return Collections.unmodifiableList(leaves);
 	}
 	
+	/**
+	 * Retrieves the list of all inner nodes.
+	 * @return the list of all inner nodes
+	 */
 	public List<? extends BDTNode<D>> getInnerNodes() {
 		return Collections.unmodifiableList(innerNodes);
 	}
+	
+	/**
+	 * Retrieves the number of leaves.
+	 * @return the number of leaves
+	 */
 	@Nonnegative
 	public int getNumLeaves() {
 		return leaves.size();
 	}
 	
+	/**
+	 * Retrieves the number of inner nodes.
+	 * @return the number of inner nodes
+	 */
 	@Nonnegative
 	public int getNumInnerNodes() {
 		return innerNodes.size();
 	}
 	
+	/**
+	 * Retrieves the number of all nodes.
+	 * @return the number of all nodes
+	 */
 	@Nonnegative
 	public int getNumNodes() {
 		return nodes.size();
 	}
 	
+	/**
+	 * Retrieves the number of nodes of the given type.
+	 * @param type the type of nodes to consider
+	 * @return the number of nodes of the given type
+	 */
 	@Nonnegative
 	public int getNumNodes(NodeType type) {
 		if(type == NodeType.ANY) {
@@ -173,11 +217,27 @@ public class BinaryDTree<D> {
 	}
 	
 	
+	/**
+	 * Splits a leaf, turning it into an inner node with two children (leaves).
+	 * 
+	 * @param leaf the leaf to split
+	 * @param discriminator the discriminator for the new inner node
+	 */
 	@Nonnull
 	public void split(BDTNode<D> leaf, D discriminator) {
 		split(leaf, discriminator, false);
 	}
 	
+	/**
+	 * Splits a leaf, turning it into an inner node with two children (leaves).
+	 * The {@code repChild} parameter allows controlling which of the newly
+	 * created children will be assigned the leaf ID of the split node.
+	 * 
+	 * @param leaf the leaf to split
+	 * @param discriminator the discriminator for the new inner node
+	 * @param repChild the child of the newly split node that will be assigned
+	 * the leaf ID of {@code leaf}.
+	 */
 	@Nonnull
 	public void split(BDTNode<D> leaf, D discriminator, boolean repChild) {
 		int oldLeafId = leaf.getLeafId();
@@ -201,11 +261,21 @@ public class BinaryDTree<D> {
 		innerNodes.add(leaf);
 	}
 	
+	/**
+	 * Retrieves a node by its node ID.
+	 * @param nodeId the node ID of the node
+	 * @return the node with the given node ID
+	 */
 	@Nonnull
 	public BDTNode<D> getNode(int nodeId) {
 		return nodes.get(nodeId);
 	}
 	
+	/**
+	 * Retrieves a leaf by its leaf ID.
+	 * @param leafId the leaf ID of the node
+	 * @return the node with the given leaf ID
+	 */
 	@Nonnull
 	public BDTNode<D> getLeaf(int leafId) {
 		return leaves.get(leafId);

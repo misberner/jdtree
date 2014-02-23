@@ -20,6 +20,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -274,6 +275,45 @@ public class MultiDTree<D,O> {
 	
 	protected Map<O,MDTNode<D,O>> createChildMap(O repOutcome, Collection<? extends O> otherOutcomes) {
 		return new HashMap<>();
+	}
+	
+	
+	
+	public Iterator<MDTNode<D,O>> subtreeNodesIterator(MDTNode<D,O> subtreeRoot, NodeType type) {
+		return new MDTSubtreeNodesIterator<>(subtreeRoot, type);
+	}
+	
+	public Iterable<MDTNode<D,O>> subtreeNodes(final MDTNode<D,O> subtreeRoot, final NodeType type) {
+		return new Iterable<MDTNode<D,O>>() {
+			@Override
+			public Iterator<MDTNode<D,O>> iterator() {
+				return subtreeNodesIterator(subtreeRoot, type);
+			}
+		};
+	}
+	
+	public Iterator<MDTNode<D,O>> subtreeNodesIterator(MDTNode<D,O> subtreeRoot) {
+		return subtreeNodesIterator(subtreeRoot, NodeType.ANY);
+	}
+	
+	public Iterable<MDTNode<D,O>> subtreeNodes(MDTNode<D,O> subtreeRoot) {
+		return subtreeNodes(subtreeRoot, NodeType.ANY);
+	}
+	
+	public Iterator<MDTNode<D,O>> subtreeInnerNodesIterator(MDTNode<D,O> subtreeRoot) {
+		return subtreeNodesIterator(subtreeRoot, NodeType.INNER);
+	}
+	
+	public Iterable<MDTNode<D,O>> subtreeInnerNodes(MDTNode<D,O> subtreeRoot) {
+		return subtreeNodes(subtreeRoot, NodeType.INNER);
+	}
+	
+	public Iterator<MDTNode<D,O>> subtreeLeavesIterator(MDTNode<D,O> subtreeRoot) {
+		return subtreeNodesIterator(subtreeRoot, NodeType.LEAF);
+	}
+	
+	public Iterable<MDTNode<D,O>> subtreeLeaves(MDTNode<D,O> subtreeRoot) {
+		return subtreeNodes(subtreeRoot, NodeType.LEAF);
 	}
 	
 }
