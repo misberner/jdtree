@@ -60,6 +60,7 @@ public class MultiDTree<D,O> {
 		root = createLeaf(null, null);
 	}
 	
+	@SuppressWarnings("unused")
 	private MultiDTree(MDTNode<D,O> root, List<MDTNode<D,O>> nodes, List<MDTNode<D,O>> innerNodes, List<MDTNode<D,O>> leaves) {
 		this.root = root;
 		this.nodes = nodes;

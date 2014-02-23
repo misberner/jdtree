@@ -1,3 +1,18 @@
+/*
+ * Copyright (c) 2014 by Malte Isberner (https://github.com/misberner).
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package com.github.misberner.jdtree.multi;
 
 import java.util.Collection;
@@ -11,6 +26,14 @@ import javax.annotation.ParametersAreNonnullByDefault;
 import com.github.misberner.jdtree.NodeType;
 
 
+/**
+ * A node in a {@link MultiDTree}.
+ * 
+ * @author Malte Isberner
+ *
+ * @param <D> discriminator type
+ * @param <O> outcome type
+ */
 @ParametersAreNonnullByDefault
 public class MDTNode<D, O> {
 	
@@ -51,7 +74,6 @@ public class MDTNode<D, O> {
 	 * @param falseChild the "false" child of this new inner node
 	 * @param trueChild the "true" child of this new inner node
 	 */
-	@SuppressWarnings("unchecked")
 	void makeInner(@Nonnegative int innerId, @Nullable D discriminator, Map<O,MDTNode<D, O>> children) {
 		assert isLeaf() : "Can only turn a leaf node into an inner node";
 		

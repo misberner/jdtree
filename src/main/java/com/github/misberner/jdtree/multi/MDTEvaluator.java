@@ -15,8 +15,27 @@
  */
 package com.github.misberner.jdtree.multi;
 
+
+/**
+ * Evaluator for determining the outcome for some object with respect to
+ * a discriminator in a {@link MultiDTree}.
+ * 
+ * @author Malte Isberner
+ *
+ * @param <X> type of the object to be evaluated
+ * @param <D> discriminator type
+ * @param <O> outcome type
+ */
 public interface MDTEvaluator<X,D,O> {
 
+	/**
+	 * Determines the outcome for the given object, with respect to the
+	 * given discriminator.
+	 * 
+	 * @param object the object to be evaluated
+	 * @param discriminator the discriminator to be evaluated against
+	 * @return the outcome
+	 */
 	public O evaluate(X object, D discriminator);
 
 }
