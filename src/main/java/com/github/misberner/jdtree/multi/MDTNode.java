@@ -16,6 +16,8 @@ public class MDTNode<D, O> {
 	
 	@Nullable
 	final MDTNode<D,O> parent;
+	final O parentOutcome;
+	
 	final int nodeId;
 	@Nonnegative
 	private final int depth;
@@ -27,11 +29,18 @@ public class MDTNode<D, O> {
 	private Map<O,MDTNode<D,O>> children;
 	
 	
-	public MDTNode(@Nullable MDTNode<D,O> parent, @Nonnegative int nodeId, @Nonnegative int leafId) {
+	public MDTNode(@Nullable MDTNode<D,O> parent, @Nullable O parentOutcome, @Nonnegative int nodeId, @Nonnegative int leafId) {
 		this.parent = parent;
 		this.nodeId = nodeId;
 		this.typeId = leafId;
-		this.depth = (parent == null) ? 0 : parent.depth + 1;
+		if(parent == null) {
+			this.depth = 0;
+			this.parentOutcome = null;
+		}
+		else {
+			this.depth = parent.depth + 1;
+			this.parentOutcome = parentOutcome;
+		}
 	}
 	
 	/**
